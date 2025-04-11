@@ -8,84 +8,92 @@ instance : OfNat Tryte (n : Nat) := ⟨Tryte.mk n⟩
 instance : Bot Tryte where bot := none
 instance : Top Tryte where top := some none
 instance : Inhabited Tryte where default := ⊥
+instance : DecidableEq Tryte := WithBot.decidableEq
 
 instance : ToString Tryte where
   toString
   | ⊤ => "⊤"
   | ⊥ => "⊥"
-  | some (some x) => toString x
+  | (x : Fin 6) => toString x
 
 namespace Tryte
 
 -- 3-bits make a Tryte.
-@[coe] def ofFin8 : Fin 8 → Tryte
+@[coe, inline] def ofFin8 : Fin 8 → Tryte
 | 0 => ⊥
 | 7 => ⊤
 | x => toE (x - 1)
 
-@[coe] def toFin8 : Tryte → Fin 8
-| ⊥ => 0
+@[coe, inline] def toFin8 : Tryte → Fin 8
 | ⊤ => 7
+| ⊥ => 0
 | (x : Fin 6) => x + 1
 
 instance : Coe (Fin 8) Tryte := ⟨ofFin8⟩
 instance : Coe Tryte (Fin 8) := ⟨toFin8⟩
 
-def add : Tryte → Tryte → Tryte
-| ⊥, _ => ⊥
-| _, ⊥ => ⊥
-| ⊤, _ => ⊤
-| _, ⊤ => ⊤
-| (x : Fin 6), (y : Fin 6) => x.add y
+instance : HAdd Tryte Tryte Tryte where
+  hAdd
+  | ⊥, _ => ⊥
+  | _, ⊥ => ⊥
+  | ⊤, _ => ⊤
+  | _, ⊤ => ⊤
+  | (x : Fin 6), (y : Fin 6) => x.add y
+
+instance : HSMul Nat Tryte Tryte where
+  hSMul
+  | _, ⊥ => ⊥
+  | 0, _ => 0
+  | _, ⊤ => ⊤
+  | c, (x : Fin 6) => toE (c * x)
 
 def neg : Tryte → Tryte
 | ⊥ => ⊤
 | ⊤ => ⊥
-| (x : Fin 6) => toE x.rev
+| (x : Fin 6) => x.rev
 
-instance : HAdd Tryte Tryte Tryte := ⟨add⟩
 instance : Neg Tryte := ⟨neg⟩
 
-end Tryte
+namespace Orientation
 
-namespace Tryte.Orientation
-
-def above : Tryte := ⊤
-def up : Tryte := mk 0
-def upright : Tryte := mk 1
+def above : Tryte     := ⊤
+def up : Tryte        := mk 0
+def upright : Tryte   := mk 1
 def downright : Tryte := mk 2
-def down : Tryte := mk 3
-def downleft : Tryte := mk 4
-def upleft : Tryte := mk 5
-def below : Tryte := ⊥
+def down : Tryte      := mk 3
+def downleft : Tryte  := mk 4
+def upleft : Tryte    := mk 5
+def below : Tryte     := ⊥
 
-end Tryte.Orientation
+end Orientation
 
-namespace Tryte.QwertyRightHandKeys
+namespace QwertyRightHandKeys
 
-def p : Tryte := ⊤
+def p : Tryte  := ⊤
 def kk : Tryte := mk 0
 def kl : Tryte := mk 1
 def jl : Tryte := mk 2
 def jj : Tryte := mk 3
 def jh : Tryte := mk 4
 def kh : Tryte := mk 5
-def n : Tryte := ⊥
+def n : Tryte  := ⊥
 
-end Tryte.QwertyRightHandKeys
+end QwertyRightHandKeys
 
-namespace Tryte.QwertyLeftHandKeys
+namespace QwertyLeftHandKeys
 
-def q : Tryte := ⊤
+def q : Tryte  := ⊤
 def dd : Tryte := mk 0
 def df : Tryte := mk 1
 def sf : Tryte := mk 2
 def ss : Tryte := mk 3
 def sa : Tryte := mk 4
 def da : Tryte := mk 5
-def v : Tryte := ⊥
+def v : Tryte  := ⊥
 
-end Tryte.QwertyLeftHandKeys
+end QwertyLeftHandKeys
+
+end Tryte
 
 -- indexed by 1-tryte
 structure TryteWord where
@@ -94,67 +102,85 @@ structure TryteWord where
   word : Vector UInt8 3
 deriving Inhabited
 
+namespace TryteWord
+
 -- ⊤ is used here to distinguish coercion from default
-@[coe] def TryteWord.ofVec (w : Vector Nat 3) : TryteWord := ⟨⊤, w.map UInt8.ofNat⟩
+@[coe] def ofVec (v : Vector Nat 3) : TryteWord := ⟨⊤, v.map .ofNat⟩
 
-@[coe] def TryteWord.toVec (W : TryteWord) : Vector Tryte 8 :=
-  Vector.map (Tryte.mk ∘ UInt8.toNat)
-  $ match W.bits with
-  | ⊤ => #v[
-    W.word[0].shiftRight 5,
-    W.word[0].shiftRight 2,
-    W.word[0].shiftLeft 1 |>.land 3 |>.add (W.word[1].shiftRight 7),
-    W.word[1].shiftRight 4,
-    W.word[1].shiftRight 1,
-    W.word[1].shiftLeft 2 |>.land 7 |>.add (W.word[2].shiftRight 6),
-    W.word[2].shiftRight 3,
-    W.word[2]
-  ]
-  | ⊥ => #v[
-    W.word[2],
-    W.word[2].shiftRight 3,
-    W.word[1].shiftLeft 2 |>.land 7 |>.add (W.word[2].shiftRight 6),
-    W.word[1].shiftRight 1,
-    W.word[1].shiftRight 4,
-    W.word[0].shiftLeft 1 |>.land 3 |>.add (W.word[1].shiftRight 7),
-    W.word[0].shiftRight 2,
-    W.word[0].shiftRight 5
-  ]
-  | 0 => #v[0, 0, 0, 0, 0, 0, 0, W.word[0].shiftRight 2]
-  | 1 => #v[0, 0, 0, 0, 0, 0, 0, W.word[0].shiftLeft 1 |>.land 3 |>.add (W.word[1].shiftRight 7)]
-  | 2 => #v[0, 0, 0, 0, 0, 0, 0, W.word[1].shiftRight 4]
-  | 3 => #v[0, 0, 0, 0, 0, 0, 0, W.word[1].shiftRight 1]
-  | 4 => #v[0, 0, 0, 0, 0, 0, 0, W.word[1].shiftLeft 2 |>.land 7 |>.add (W.word[2].shiftRight 6)]
-  | 5 => #v[0, 0, 0, 0, 0, 0, 0, W.word[2].shiftRight 3]
+@[coe] def toVec (W : TryteWord) : Vector Tryte 8 :=
+  .map go $ match W.bits with
+  | ⊤ => #v[w₀₀, w₀₁, w₀₂, w₁₀, w₁₁, w₁₂, w₂₀, w₂₁]
+  | 0 => #v[w₀₁, 0, 0, 0, 0, 0, 0, w₀₁]
+  | 1 => #v[w₀₂, 0, 0, 0, 0, 0, 0, w₀₂]
+  | 2 => #v[w₁₀, 0, 0, 0, 0, 0, 0, w₁₀]
+  | 3 => #v[w₁₁, 0, 0, 0, 0, 0, 0, w₁₁]
+  | 4 => #v[w₁₂, 0, 0, 0, 0, 0, 0, w₁₂]
+  | 5 => #v[w₂₀, 0, 0, 0, 0, 0, 0, w₂₀]
+  | ⊥ => #v[w₂₁, w₂₀, w₁₂, w₁₁, w₁₀, w₀₂, w₀₁, w₀₀]
+where
+  go (w : UInt8) : Tryte := if w = 0 then ⊥ else if w = 7 then ⊤ else .mk w.toNat
+  w₀₀ := W.word[0] >>> 5 -- 000xxxxx
+  w₀₁ := W.word[0] >>> 2 &&& 7 -- xxx000xx
+  w₀₂ := .add (W.word[0] <<< 1 &&& 7) (W.word[1] >>> 7) -- xxxxxx00 | 0xxxxxxx
+  w₁₀ := W.word[1] >>> 4 &&& 7 -- x000xxxx
+  w₁₁ := W.word[1] >>> 1 &&& 7 -- xxxx000x
+  w₁₂ := .add (W.word[1] <<< 2 &&& 7) (W.word[2] >>> 6) -- xxxxxxx0 | 00xxxxxx
+  w₂₀ := W.word[2] >>> 3 &&& 7 -- xx000xxx
+  w₂₁ := W.word[2] &&& 7 -- xxxxx000
 
-def TryteWord.Boundary (W : TryteWord) : Tryte × Tryte :=
+instance : Coe (Vector Nat 3) TryteWord := ⟨ofVec⟩
+instance : Coe TryteWord (Vector Tryte 8) := ⟨toVec⟩
+
+instance : ToString TryteWord where
+  toString W := toString W.toVec.toArray
+
+def proj (W : TryteWord) (t : Tryte) := { W with bits := t }
+
+def neg (W : TryteWord) : TryteWord := { W with bits := -W.bits }
+instance : Neg TryteWord := ⟨neg⟩
+
+def Boundary (W : TryteWord) : Tryte × Tryte :=
   let w := W.toVec
   (w[0], w[7])
 
-instance : Coe (Vector Nat 3) TryteWord := ⟨TryteWord.ofVec⟩
-instance : Coe TryteWord (Vector Tryte 8) := ⟨TryteWord.toVec⟩
+def IsBot (W : TryteWord) : Prop := W.word = #v[0, 0, 0]
 
-@[simp] def TryteWord.neg (L : TryteWord) : TryteWord := { L with bits := -L.bits }
-instance : Neg TryteWord := ⟨TryteWord.neg⟩
+instance : DecidablePred IsBot := fun W => by
+  rw [IsBot, Vector.eq_mk]
+  exact decEq W.word.toArray #[0, 0, 0]
 
-#eval (#v[1, 1, 1] : TryteWord)       |>.toVec.toArray |> toString
-#eval (#v[2, 2, 2] : TryteWord)       |>.toVec.toArray |> toString
-#eval (#v[3, 3, 3] : TryteWord)       |>.toVec.toArray |> toString
-#eval (#v[8, 8, 8] : TryteWord)       |>.toVec.toArray |> toString
-#eval (#v[24, 24, 24] : TryteWord)    |>.toVec.toArray |> toString
-#eval (#v[192, 192, 192] : TryteWord) |>.toVec.toArray |> toString
+def IsTop (W : TryteWord) : Prop := W.word = #v[255, 255, 255]
 
-def TryteWord.IsRelative (W : TryteWord) : Prop  := W.Boundary.1 = W.Boundary.2
-def TryteWord.IsAlien (W : TryteWord) : Prop     := W.Boundary.1 ≠ 0 ∧ ¬W.IsRelative
+instance : DecidablePred IsTop := fun W => by
+  rw [IsTop, Vector.eq_mk]
+  exact decEq W.word.toArray #[255, 255, 255]
 
-def TryteWord.IsImpartial (W : TryteWord) : Prop := W.Boundary.1 = 0 ∧ W.Boundary.2 = 1
-def TryteWord.IsPartisan (W : TryteWord) : Prop  := W.Boundary.1 = 0 ∧ W.Boundary.2 = 2
-def TryteWord.IsValid (W : TryteWord) : Prop     := W.IsImpartial ∨ W.IsPartisan
+def IsRelative (W : TryteWord) : Prop := W.Boundary.1 = W.Boundary.2
 
-def TryteWord.IsAbstract (W : TryteWord) : Prop  := ¬W.IsAlien ∧ ¬W.IsValid
+instance : DecidablePred IsRelative := fun W => by
+  unfold IsRelative
+  obtain ⟨x, y⟩ := W.Boundary
+  exact decEq x y
 
-def TryteWord.align (W : TryteWord) : (W.IsValid → Part TryteWord) → Part TryteWord :=
-  Part.assert W.IsValid
+def IsImpartial (W : TryteWord) : Prop := W.Boundary.1 = ⊥ ∧ W.Boundary.2 = 1
+instance : DecidablePred IsImpartial := fun _ => by exact instDecidableAnd
+
+def IsPartisan (W : TryteWord) : Prop := W.Boundary.1 = ⊥ ∧ W.Boundary.2 = 2
+instance : DecidablePred IsPartisan := fun _ => by exact instDecidableAnd
+
+def IsValid (W : TryteWord) : Prop := W.IsImpartial ∨ W.IsPartisan
+instance : DecidablePred IsValid := fun _ => by exact instDecidableOr
+
+def IsAbstract (W : TryteWord) : Prop := W.Boundary.1 = ⊥ ∧ ¬W.IsValid
+instance : DecidablePred IsAbstract := fun _ => by exact instDecidableAnd
+
+def IsSurreal (W : TryteWord) : Prop := W.Boundary.1 = 0 ∧ W.Boundary.2 = ⊥
+instance : DecidablePred IsSurreal := fun _ => by exact instDecidableAnd
+
+def IsAlien (W : TryteWord) : Prop := W.Boundary.1 ≠ ⊥ ∧ ¬W.IsSurreal
+instance : DecidablePred IsAlien := fun _ => by exact instDecidableAnd
+
+end TryteWord
 
 -- indexed by 2-trytes
 structure TryteLine where
@@ -162,19 +188,58 @@ structure TryteLine where
   line : Vector TryteWord 64
 deriving Inhabited
 
-def TryteLine.IsSound (L : TryteLine) : Prop := ∃ (i : Fin 64), L.line[i].IsValid
-def TryteLine.IsComplete (L : TryteLine) : Prop := ∀ (i : Fin 64), L.line[i].IsValid
+namespace TryteLine
 
-def TryteLine.solve (L : TryteLine) : (L.IsComplete → Part TryteLine) → Part TryteLine :=
-  Part.assert L.IsComplete
+def proj (L : TryteLine) (W : TryteWord) := { L with bits := W.Boundary }
+def inv (L : TryteLine) : TryteLine := { L with bits := (-L.bits.1, -L.bits.2) }
+
+def neg (L : TryteLine) : TryteLine := { L with line := L.line.map .neg }
+instance : Neg TryteLine := ⟨neg⟩
+
+def word (L : TryteLine) : TryteWord :=
+  let (x, y) : Fin 64 × Fin 64 := (L.bits.1.toFin8, L.bits.2.toFin8)
+  L.line[x + 8 * y]
+
+def IsValid (L : TryteLine) : Prop := ∃ (W : TryteWord), (L.proj W).word.IsValid
+def IsAbstract (L : TryteLine) : Prop := ∃ (W : TryteWord), (L.proj W).word.IsAbstract
+def IsSurreal (L : TryteLine) : Prop := ∃ (W : TryteWord), (L.proj W).word.IsSurreal
+
+end TryteLine
 
 -- indexed by 4-trytes
 structure TryteBall where
-  bits : Tryte × Tryte × Tryte × Tryte
-  ball : Vector TryteLine 4096
+  bits : (Tryte × Tryte) × (Tryte × Tryte)
+  ball : Vector TryteWord 4096
 deriving Inhabited
 
-def TryteBall.IsSound (B : TryteBall) : Prop := ∃ (i : Fin 4096), B.ball[i].IsSound
+namespace TryteBall
 
-def TryteBall.compose (B : TryteBall) : (B.IsSound → Part TryteBall) → Part TryteBall :=
-  Part.assert B.IsSound
+def proj (B : TryteBall) (W1 W2 : TryteWord) :=
+  { B with bits := (W1.Boundary, W2.Boundary) }
+
+def rotate (B : TryteBall) (t : Tryte) : TryteBall :=
+  match t with
+  | ⊤ => { B with ball := B.ball.map .neg }
+  | 0 => { B with bits := B.bits.swap }
+  | 1 => { B with bits := (B.bits.1.swap, B.bits.2) }
+  | 2 => { B with bits := (B.bits.1, B.bits.2.swap) }
+  | 3 => { B with bits := ((B.bits.1.1, B.bits.2.2), (B.bits.2.1, B.bits.1.2)) }
+  | 4 => { B with bits := ((B.bits.2.2, B.bits.1.1), (B.bits.2.1, B.bits.1.2)) }
+  | 5 => { B with bits := ((B.bits.1.1, B.bits.2.2), (B.bits.1.2, B.bits.2.1)) }
+  | ⊥ => { B with bits := ((-B.bits.1.1, -B.bits.1.2), (-B.bits.2.1, -B.bits.2.2)) }
+
+def inv (B : TryteBall) : TryteBall := B.rotate default
+
+def neg (B : TryteBall) : TryteBall := B.rotate ⊤
+instance : Neg TryteBall := ⟨neg⟩
+
+def word (B : TryteBall) : TryteWord :=
+  let (w, x, y, z) : Fin 4096 × Fin 4096 × Fin 4096 × Fin 4096 :=
+    (B.bits.1.1.toFin8, B.bits.1.2.toFin8, B.bits.2.1.toFin8, B.bits.2.2.toFin8)
+  B.ball[w + 8 * x + 64 * y + 512 * z]
+
+def IsValid (B : TryteBall) : Prop := ∃ (W1 W2 : TryteWord), (B.proj W1 W2).word.IsValid
+def IsAbstract (B : TryteBall) : Prop := ∃ (W1 W2 : TryteWord), (B.proj W1 W2).word.IsAbstract
+def IsSurreal (B : TryteBall) : Prop := ∃ (W1 W2 : TryteWord), (B.proj W1 W2).word.IsSurreal
+
+end TryteBall
